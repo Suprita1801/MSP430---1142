@@ -7,12 +7,12 @@
 ## Overview
 
 This session covered **5 programs** split into two categories:
-- Reset function implementation (Programs 1 & 2)
-- Interrupt-driven parking lot system (Programs 3, 4 & 5)
+- Reset function implementation (Program 1)
+- Interrupt-driven parking lot system (Programs 2, 3, 4 & 5)
 
 ---
 
-## Program 1 — Reset Button (Basic)
+## Program 1 — Reset Button (with Forward Declaration)
 
 **Concept:** Hold button to trigger reset, release early to blink LED2.
 
@@ -30,34 +30,63 @@ Formula: blinks = toggles / 2
 Always use EVEN number of toggles!
 ```
 
+**Key concept — forward declaration:**
+```
+C compiler reads top to bottom.
+If function is called before it is defined,
+compiler throws an error.
+Forward declaration tells compiler the
+function exists before it sees the definition.
+
+void resetToDefault(void);  <- add before main()
+```
+
 **Pins:** `P1.4` input (pull-down) · `P1.0` LED1 · `P1.6` LED2
 
 ---
 
-## Program 2 — Reset Button (Forward Declaration)
+## Program 2 — Parking Lot (Basic Interrupt)
 
-**Concept:** Same as Program 1 with proper C structure fixes.
+**Concept:** Basic interrupt-driven car counter using `__no_operation()`
+as a debugger breakpoint to inspect `space` value. No LED, no bounds check.
 
-**Fixes applied:**
-- `void resetToDefault(void);` forward declaration added before `main()`
-- `char ct = 0;` initialized properly
-- `10 toggles` used for correct 5 blinks
+**Pins:**
 
-**Key concept — forward declaration:**
+| Pin | Role | Config |
+|---|---|---|
+| P1.3 | Entry sensor | Pull-up, HIGH to LOW |
+| P1.4 | Exit sensor | Pull-down, LOW to HIGH |
+
+**ISR logic:**
 ```
-C compiler reads top to bottom.
-If a function is called before it is defined,
-compiler throws an error.
-A forward declaration tells the compiler the
-function exists before it sees the definition.
+Car enters → P1.3 triggers → __no_operation() → space--
+Car exits  → P1.4 triggers → __no_operation() → space++
+```
+
+**Key registers:**
+```
+P1IE  |= (BIT3+BIT4)  → interrupts enabled
+P1IES |=  BIT3         → HIGH to LOW edge (entry)
+P1IES &= ~BIT4         → LOW to HIGH edge (exit)
+P1IFG &= ~(BIT3+BIT4) → clear flags
+__bis_SR_register(GIE) → global interrupt ON
+```
+
+**Important notes:**
+```
+- space = 6 (set after GIE)
+- No LED indicator in this version
+- No bounds check (no space > 0 or space < 6)
+- __no_operation() used as breakpoint
+  to inspect space value in CCS debugger
 ```
 
 ---
 
-## Program 3 — Parking Lot (Basic Interrupt)
+## Program 3 — Parking Lot (LED Indicator, No Forceful Reset)
 
-**Concept:** Interrupt-driven car entry/exit counter with LED indicators.
-No forceful reset. LED status only.
+**Concept:** Extends Program 2 — adds LED indicator for space status.
+No forceful reset in this version.
 
 **Pins:**
 
@@ -80,16 +109,11 @@ Car enters → P1.3 triggers → space-- (if space > 0)
 Car exits  → P1.4 triggers → space++ (if space < SPACE)
 ```
 
-**Key registers:**
-```
-P1IE  |= (BIT3+BIT4)  → interrupts enabled
-P1IES |=  BIT3         → HIGH to LOW edge (entry)
-P1IES &= ~BIT4         → LOW to HIGH edge (exit)
-P1IFG &= ~(BIT3+BIT4) → clear flags
-__bis_SR_register(GIE) → global interrupt ON
-```
-
-> Note: `.c` reference file only — no forceful reset in this version.
+**Changes from Program 2:**
+- `#define SPACE 6` added for clean constant
+- `P1.0` and `P1.6` LEDs added as output
+- `space > 0` and `space < SPACE` bounds checks added
+- No forceful reset
 
 ---
 
@@ -113,8 +137,6 @@ Debounce 500ms added per ISR case
 ```
 
 **Changes from Program 3:**
-- `#define SPACE 6` added for clean constant
-- `space > 0` and `space < SPACE` bounds checks added
 - Forceful reset handled in `while()` loop
 - 500ms debounce delay inside each ISR case
 
@@ -123,7 +145,7 @@ Debounce 500ms added per ISR case
 ## Program 5 — Parking Lot V4 (Forceful Reset in ISR)
 
 **Concept:** Forceful reset moved from `while()` into ISR.
-Single 500ms delay placed at ISR entry covers all cases.
+Single 500ms delay at ISR entry covers all cases.
 
 **ISR structure:**
 ```
@@ -151,19 +173,19 @@ Enter ISR
 
 ---
 
-## Version Comparison — V3 vs V4
+## Parking System Evolution
 
 ```
-+------------------+--------------------+--------------------+
-| Feature          | V3 (Program 4)     | V4 (Program 5)     |
-+------------------+--------------------+--------------------+
-| Reset location   | while() main loop  | ISR                |
-| Delay position   | Inside each if     | Once at ISR entry  |
-| Code lines       | Repeated delays    | Single delay       |
-| Debounce         | Per condition      | All conditions     |
-| Readability      | Repetitive         | Clean              |
-| Best practice    | No                 | Yes                |
-+------------------+--------------------+--------------------+
++------------------+--------+-------+---------+---------+
+| Feature          | Prog 2 | Prog 3| Prog 4  | Prog 5  |
++------------------+--------+-------+---------+---------+
+| LED indicator    | No     | Yes   | Yes     | Yes     |
+| Bounds check     | No     | Yes   | Yes     | Yes     |
+| Forceful reset   | No     | No    | while() | ISR     |
+| Debounce delay   | No     | No    | Per case| Entry   |
+| #define SPACE    | No     | Yes   | Yes     | Yes     |
+| Best practice    | Basic  | Good  | Better  | Best    |
++------------------+--------+-------+---------+---------+
 ```
 
 ---
@@ -174,6 +196,7 @@ Enter ISR
 `ISR — interrupt subroutine` `Forward declaration` `#define constant`
 `XOR toggle` `Debounce delay` `Pull-up / Pull-down`
 `HIGH to LOW edge` `LOW to HIGH edge` `Emergency reset`
+`__no_operation()` `CCS debugger breakpoint`
 
 ---
 
