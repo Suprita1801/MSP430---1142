@@ -126,15 +126,28 @@ to debouncing, counter implementation, and hold-duration detection.
 
 ---
 
+### 10 · Interrupt — Hold Reset + Dual LED (`10_interrupt_hold_reset_dual_led.c`)
+- **Input:** P1.4 (pull-down, rising edge)
+- **Output:** P1.0 LED (blinks while held) + P1.6 LED (reset indicator)
+- **Concept:** Builds on Program 09 by adding P1.6 as a dedicated
+  reset indicator. Short press increments count — P1.0 blinks
+  while button is held. Holding for 3 seconds (30 × 0.1 sec)
+  resets count to zero and P1.6 flashes for 0.5 sec to visually
+  confirm the reset. Both LEDs start OFF.
+
+  | Action | P1.0 | P1.6 |
+  |---|---|---|
+  | Button held | Blinks every 0.1 sec | OFF |
+  | Hold 3 sec → reset | OFF | Flashes 0.5 sec |
+  | Idle | OFF | OFF |
+
 ## Pin Summary
 
 | Pin | Role |
 |---|---|
 | P1.4 | Input — push button (pull-down) |
-| P1.0 | Output — LED indicator |
-| P1.6 | Output — LED indicator (programs 1-5) |
-
----
+| P1.0 | Output — press indicator LED (programs 1-5, 8-10) |
+| P1.6 | Output — LED indicator (programs 1-5) + reset indicator (program 10) |
 
 ## Debugging Tip
 
