@@ -344,4 +344,4 @@ This project is open source and free to use for educational purposes.
 
 ---
 
-*Built with ❤️ using MSP430G2553 — SmartGym Monitor Project*
+*Built with using MSP430G2553 — SmartGym Monitor Project*
