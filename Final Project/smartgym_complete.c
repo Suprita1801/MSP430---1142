@@ -159,6 +159,7 @@ volatile uint16_t restSeconds    = 0;
 volatile uint16_t restLimit      = 0;
 volatile uint8_t  warnBeepTick   = 0;
 volatile uint8_t  upperHalfDone  = 0;
+volatile uint8_t  lowerHalfDone  = 0;
 
 /* Temperature */
 volatile uint8_t  tempReadCounter = 0;
@@ -297,18 +298,51 @@ void notify_temp(int16_t t, const char *status)
  * ════════════════════════════════════════════════════ */
 void adc_init(void)
 {
-    ADC10CTL1 = INCH_0;
-    ADC10CTL0 = SREF_0 | ADC10SHT_3 | ADC10ON;
-    ADC10AE0  = BIT0;
+    /*
+     * ADC10 setup for TMP36 on P1.0 (A0)
+     * SREF_0     : Vref = VCC (3.3V)
+     * ADC10SHT_3 : sample hold 64 ADC clocks — stable for TMP36
+     * ADC10ON    : ADC on
+     * ADC10IE    : interrupt disabled — polling mode
+     * ADC10SR    : slew rate limited — better for slow signals like TMP36
+     */
+    ADC10CTL1  = INCH_0 | ADC10DIV_3;  /* channel A0, clock /4       */
+    ADC10CTL0  = SREF_0                 /* Vref = VCC 3.3V            */
+               | ADC10SHT_3             /* 64 clock sample hold       */
+               | ADC10SR                /* slow slew rate for TMP36   */
+               | ADC10ON;              /* ADC ON                      */
+    ADC10AE0   = BIT0;                 /* P1.0 analog enable          */
+
+    /* Allow ADC to settle after power on */
+    __delay_cycles(16000 * 10);        /* 10ms settling time          */
 }
 
 int16_t adc_read_temp(void)
 {
-    int32_t vout_mv;
-    ADC10CTL0 |= ENC | ADC10SC;
-    while (ADC10CTL1 & ADC10BUSY);
-    vout_mv = ((int32_t)ADC10MEM * 3300) / 1023;
-    return (int16_t)((vout_mv - 500) / 10);
+    /*
+     * Take 8 samples and average them for stability.
+     * TMP36 formula:
+     *   Vout_mV = (raw * 3300) / 1023
+     *   Temp_C  = (Vout_mV - 500) / 10
+     *
+     * Use int32_t for intermediate to prevent overflow.
+     */
+    uint8_t  i;
+    int32_t  sum = 0;
+    int32_t  vout_mv;
+
+    for (i = 0; i < 8; i++)
+    {
+        ADC10CTL0 &= ~ENC;             /* disable before config       */
+        ADC10CTL0 |=  ENC | ADC10SC;  /* start conversion            */
+        while (ADC10CTL1 & ADC10BUSY);/* wait for result             */
+        sum += ADC10MEM;
+        __delay_cycles(16000);         /* 1ms between samples         */
+    }
+
+    sum     = sum / 8;                 /* average of 8 readings       */
+    vout_mv = (sum * 3300L) / 1023L;  /* convert to millivolts       */
+    return  (int16_t)((vout_mv - 500L) / 10L);
 }
 
 /* ════════════════════════════════════════════════════
